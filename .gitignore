@@ -3,7 +3,6 @@
 **/infra/.terraform.lock.hcl
 **/infra/*.tfstate
 **/infra/*.tfstate.backup
-**/infra/*.tfvars
 **/infra/*.tfvars.json
 **/infra/tfplan
 
