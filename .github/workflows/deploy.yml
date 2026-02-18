@@ -74,8 +74,8 @@ jobs:
         id: tf_apply_ecr
         run: |
           terraform apply -target=aws_ecr_repository.lambda_sender_repo \
-                          -var="account_id=${{ env.AWS_ACCOUNT_ID }}" \
-                          -auto-approve
+                    -var-file="terraform.tfvars" \
+                    -auto-approve
 
           # Captura o URI do ECR
           echo "LAMBDA_SENDER_ECR_URI=$(terraform output -raw ecr_lambda_sender_url)" >> $GITHUB_ENV
@@ -108,9 +108,10 @@ jobs:
       # ------------------------------
       - name: Terraform Plan para Deploy
         run: |
-          terraform plan -var="account_id=${{ env.AWS_ACCOUNT_ID }}" -out=tfplan
+          terraform plan -var-file="terraform.tfvars" -out=tfplan
         working-directory: infra
 
-      - name: Terraform Apply (Deploy Lambdas)
-        run: terraform apply -auto-approve tfplan
+      - name: Terraform Apply (Deploy Completo)
+        run: |
+          terraform apply -var-file="terraform.tfvars" -auto-approve
         working-directory: infra
