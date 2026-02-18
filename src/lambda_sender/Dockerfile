@@ -1,14 +1,12 @@
-FROM public.ecr.aws/lambda/python:3.11
+FROM public.ecr.aws/lambda/python:3.12
 
-# Copy requirements.txt
-COPY requirements.txt ${LAMBDA_TASK_ROOT}
+WORKDIR ${LAMBDA_TASK_ROOT}
 
-# Install the specified packages
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt ./
 
-# Copy function code
-COPY handler.py ${LAMBDA_TASK_ROOT}
+RUN pip install -r requirements.txt --target . --no-cache-dir
 
-# Set the CMD to your handler
+COPY handler.py ${LAMBDA_TASK_ROOT}/
+
 CMD [ "handler.lambda_handler" ]
 
