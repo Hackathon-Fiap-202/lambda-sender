@@ -73,17 +73,11 @@ jobs:
       - name: Terraform Apply (ECR)
         id: tf_apply_ecr
         run: |
-          terraform apply -target=aws_ecr_repository.lambda_auth_repo \
-                          -target=aws_ecr_repository.lambda_registration_repo \
-                          -target=aws_ecr_repository.lambda_get_user_repo \
-                          -target=aws_ecr_repository.lambda_list_users_repo \
+          terraform apply -target=aws_ecr_repository.lambda_sender_repo \
                           -auto-approve
 
-          # Captura os URIs do ECR
-          echo "LAMBDA_AUTH_ECR_URI=$(terraform output -raw ecr_lambda_auth_url)" >> $GITHUB_ENV
-          echo "LAMBDA_REGISTRATION_ECR_URI=$(terraform output -raw ecr_lambda_registration_url)" >> $GITHUB_ENV
-          echo "LAMBDA_GET_USER_ECR_URI=$(terraform output -raw ecr_lambda_get_user_url)" >> $GITHUB_ENV
-          echo "LAMBDA_LIST_USERS_ECR_URI=$(terraform output -raw ecr_lambda_list_users_url)" >> $GITHUB_ENV
+          # Captura o URI do ECR
+          echo "LAMBDA_SENDER_ECR_URI=$(terraform output -raw ecr_lambda_sender_url)" >> $GITHUB_ENV
         working-directory: infra
 
       # ------------------------------
@@ -95,43 +89,18 @@ jobs:
       - name: Docker Login no Amazon ECR
         run: |
           # Extrair apenas o host do ECR
-          AUTH_ECR_HOST=$(echo ${{ env.LAMBDA_AUTH_ECR_URI }} | cut -d'/' -f1)
-          REGISTRATION_ECR_HOST=$(echo ${{ env.LAMBDA_REGISTRATION_ECR_URI }} | cut -d'/' -f1)
+          SENDER_ECR_HOST=$(echo ${{ env.LAMBDA_SENDER_ECR_URI }} | cut -d'/' -f1)
 
           # Login Docker
           aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-            | docker login --username AWS --password-stdin $AUTH_ECR_HOST
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-          | docker login --username AWS --password-stdin ${{ env.LAMBDA_REGISTRATION_ECR_URI }}
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-          | docker login --username AWS --password-stdin ${{ env.LAMBDA_GET_USER_ECR_URI }}
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-          | docker login --username AWS --password-stdin ${{ env.LAMBDA_LIST_USERS_ECR_URI }}
- 
+            | docker login --username AWS --password-stdin $SENDER_ECR_HOST
 
-      - name: Build, Tag e Push Lambda Authorizer
+      - name: Build, Tag e Push Lambda Sender
         run: |
-          docker build -t lambda-auth src/lambda_auth/
-          docker tag lambda-auth:latest ${{ env.LAMBDA_AUTH_ECR_URI }}:latest
-          docker push ${{ env.LAMBDA_AUTH_ECR_URI }}:latest
-
-      - name: Build, Tag e Push Lambda Registration
-        run: |
-          docker build -t lambda-registration src/lambda_registration/
-          docker tag lambda-registration:latest ${{ env.LAMBDA_REGISTRATION_ECR_URI }}:latest
-          docker push ${{ env.LAMBDA_REGISTRATION_ECR_URI }}:latest
-
-      - name: Build, Tag e Push Lambda Get User
-        run: |
-          docker build -t lambda-get-user src/lambda_get_user/
-          docker tag lambda-get-user:latest ${{ env.LAMBDA_GET_USER_ECR_URI }}:latest
-          docker push ${{ env.LAMBDA_GET_USER_ECR_URI }}:latest
-
-      - name: Build, Tag e Push Lambda List Users
-        run: |
-          docker build -t lambda-list-users src/lambda_list_users/
-          docker tag lambda-list-users:latest ${{ env.LAMBDA_LIST_USERS_ECR_URI }}:latest
-          docker push ${{ env.LAMBDA_LIST_USERS_ECR_URI }}:latest
+          docker build -t lambda-sender src/lambda_sender/
+          docker tag lambda-sender:latest ${{ env.LAMBDA_SENDER_ECR_URI }}:latest
+          docker push ${{ env.LAMBDA_SENDER_ECR_URI }}:latest
+      
 
       # ------------------------------
       # 7️⃣ Terraform – Deploy Lambdas
