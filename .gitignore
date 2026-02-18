@@ -1,0 +1,25 @@
+# Terraform
+**/infra/.terraform/*
+**/infra/.terraform.lock.hcl
+**/infra/*.tfstate
+**/infra/*.tfstate.backup
+**/infra/*.tfvars
+**/infra/*.tfvars.json
+**/infra/tfplan
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# LocalStack & Docker Volumes
+localstack/
+volume/
+.localstack/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,40 @@
+version: "3.8"
+
+services:
+  localstack:
+    image: localstack/localstack:stable-amd64
+    container_name: localstack
+    restart: always
+    ports:
+      - "4566:4566"
+      - "4510-4559:4510-4559"
+    environment:
+      - SERVICES=sqs,s3,lambda,ecr,iam,ses,sts,ssm,cloudwatch,logs
+      - DEBUG=0
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_SESSION_TOKEN=test
+      - LOCALSTACK_HOST=localstack
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - "./localstack:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh" # Modified path to match user's structure but keep my init script
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:4566/_localstack/health" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    networks:
+      - hackathon
+
+networks:
+  hackathon:
+    driver: bridge
