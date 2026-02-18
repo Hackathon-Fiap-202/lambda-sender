@@ -36,10 +36,30 @@ def get_user_email(user_id):
         logger.error(f"Error getting user {user_id} from Cognito: {e}")
         return None
 
-def send_email_notification(recipient_email):
+def send_email_notification(recipient_email, key_name=None, status=None):
     """
     Sends an email notification via SES.
     """
+    # Prepare email content based on status
+    status_display = status if status else 'completed'
+    key_name_display = key_name if key_name else 'your file'
+    
+    subject = f'Video Processing {status_display.capitalize()}'
+    
+    text_body = f'Your video "{key_name_display}" has been {status_display}.'
+    if status and status.lower() == 'completed':
+        text_body += ' It is ready for download.'
+    
+    html_body = f'''<html>
+<body>
+<h1>Video Processing {status_display.capitalize()}</h1>
+<p><strong>File:</strong> {key_name_display}</p>
+<p><strong>Status:</strong> {status_display}</p>
+<p>Your video has been {status_display}.</p>
+{"<p>It is ready for download.</p>" if status and status.lower() == 'completed' else ""}
+</body>
+</html>'''
+    
     try:
         response = ses_client.send_email(
             Source=SOURCE_EMAIL,
@@ -48,16 +68,16 @@ def send_email_notification(recipient_email):
             },
             Message={
                 'Subject': {
-                    'Data': 'Video Processing Complete',
+                    'Data': subject,
                     'Charset': 'UTF-8'
                 },
                 'Body': {
                     'Text': {
-                        'Data': 'Your video has been successfully processed and is ready for download.',
+                        'Data': text_body,
                         'Charset': 'UTF-8'
                     },
                     'Html': {
-                        'Data': '<html><body><h1>Video Processed</h1><p>Your video has been successfully processed and is ready for download.</p></body></html>',
+                        'Data': html_body,
                         'Charset': 'UTF-8'
                     }
                 }
@@ -89,17 +109,34 @@ def lambda_handler(event, context):
             try:
                 body = json.loads(record['body'])
                 user_id = body.get('cognito_user_id')
+                key_name = body.get('key_name')
+                status = body.get('status')
                 
                 if not user_id:
                     logger.warning(f"No cognito_user_id found in message body: {record['body']}")
                     continue
                 
-                logger.info(f"Processing video completion for user: {user_id}")
+                # Validate key_name and status are strings
+                if key_name and not isinstance(key_name, str):
+                    logger.warning(f"key_name is not a string: {key_name}")
+                    key_name = None
+                
+                if status and not isinstance(status, str):
+                    logger.warning(f"status is not a string: {status}")
+                    status = None
+                
+                if not key_name:
+                    logger.warning(f"No key_name found in message body for user: {user_id}")
+                
+                if not status:
+                    logger.warning(f"No status found in message body for user: {user_id}")
+                
+                logger.info(f"Processing video completion for user: {user_id}, file: {key_name}, status: {status}")
                 
                 email = get_user_email(user_id)
                 
                 if email:
-                    success = send_email_notification(email)
+                    success = send_email_notification(email, key_name, status)
                     if success:
                         logger.info(f"Successfully processed message for user: {user_id}")
                     else:
