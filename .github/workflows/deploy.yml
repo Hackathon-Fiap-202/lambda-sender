@@ -74,6 +74,7 @@ jobs:
         id: tf_apply_ecr
         run: |
           terraform apply -target=aws_ecr_repository.lambda_sender_repo \
+                          -var="account_id=${{ env.AWS_ACCOUNT_ID }}" \
                           -auto-approve
 
           # Captura o URI do ECR
@@ -107,7 +108,7 @@ jobs:
       # ------------------------------
       - name: Terraform Plan para Deploy
         run: |
-          terraform plan -out=tfplan
+          terraform plan -var="account_id=${{ env.AWS_ACCOUNT_ID }}" -out=tfplan
         working-directory: infra
 
       - name: Terraform Apply (Deploy Lambdas)
