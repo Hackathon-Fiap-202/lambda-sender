@@ -63,7 +63,7 @@ jobs:
         working-directory: infra
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -reconfigure
         working-directory: infra
 
       - name: Terraform Validate
