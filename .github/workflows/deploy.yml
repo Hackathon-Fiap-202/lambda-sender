@@ -74,7 +74,6 @@ jobs:
         id: tf_apply_ecr
         run: |
           terraform apply -target=aws_ecr_repository.lambda_sender_repo \
-                    -var-file="terraform.tfvars" \
                     -auto-approve
 
           # Captura o URI do ECR

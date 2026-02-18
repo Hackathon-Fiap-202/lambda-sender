@@ -8,13 +8,12 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Initialize clients outside the handler for execution environment reuse
 cognito_client = boto3.client('cognito-idp')
 ses_client = boto3.client('ses')
 
 # Environment variables
-USER_POOL_ID = os.environ.get('USER_POOL_ID')
-SOURCE_EMAIL = os.environ.get('SOURCE_EMAIL')
+USER_POOL_ID = os.environ.get('COGNITO_USER_POOL_ID')
+SOURCE_EMAIL = os.environ.get('SES_SENDER_EMAIL')
 
 def get_user_email(user_id):
     """
@@ -35,10 +34,6 @@ def get_user_email(user_id):
 
     except ClientError as e:
         logger.error(f"Error getting user {user_id} from Cognito: {e}")
-        # Depending on the requirement, we might want to raise this or handle it gracefully.
-        # For a batch process like SQS, raising it might cause the whole batch to fail 
-        # or the message to go back to the queue (if not handled).
-        # Here we will log and return None to skip processing for this user.
         return None
 
 def send_email_notification(recipient_email):

@@ -44,7 +44,7 @@ module "lambda_sender_policy" {
         Action = [
           "cognito-idp:AdminGetUser"
         ]
-        Resource = var.cognito_user_pool_id
+        Resource = "arn:aws:cognito-idp:${var.aws_region}:${var.account_id}:userpool/${var.cognito_user_pool_id}"
       }
     ]
   }
