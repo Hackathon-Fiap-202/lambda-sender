@@ -11,7 +11,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "terraform-state"
+    bucket         = "nextime-frame-state-bucket"
     key            = "lambda-sender/terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
