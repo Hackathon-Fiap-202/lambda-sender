@@ -13,8 +13,7 @@ terraform {
   backend "s3" {
     bucket         = "nextime-frame-state-bucket"
     key            = "lambda-sender/terraform.tfstate"
-    region         = "us-east-1"
+    region         = "eu-central-1"
     encrypt        = true
-    dynamodb_table = "terraform-locks"
   }
 }
