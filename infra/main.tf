@@ -1,4 +1,13 @@
 # ==========================
+# Lambda Sender Archive
+# ==========================
+data "archive_file" "lambda_sender" {
+  type        = "zip"
+  source_file = "${path.module}/../lambda-handler.zip"
+  output_path = "${path.module}/.terraform/lambda-handler-archive.zip"
+}
+
+# ==========================
 # IAM Role for Lambda Sender
 # ==========================
 module "lambda_sender_role" {
@@ -56,38 +65,32 @@ resource "aws_iam_role_policy_attachment" "attach_lambda_sender" {
 }
 
 # ==========================
-# ECR Repository
-# ==========================
-resource "aws_ecr_repository" "lambda_sender_repo" {
-  name                 = "lambda-sender-repo"
-  image_tag_mutability = "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-}
-
-# ==========================
 # Lambda Function
 # ==========================
 resource "aws_lambda_function" "lambda_sender" {
   function_name = var.lambda_sender_name
   role          = module.lambda_sender_role.role_arn
-  package_type  = var.package_type
-  image_uri     = local.lambda_sender_image_uri
-  timeout       = var.timeout
-  memory_size   = var.memory_size
+  handler       = "lambda_sender.handler.handler"
+  runtime       = "python3.11"
+
+  # Use local ZIP file instead of ECR image
+  filename         = data.archive_file.lambda_sender.output_path
+  source_code_hash = data.archive_file.lambda_sender.output_base64sha256
+
+  timeout     = var.timeout
+  memory_size = var.memory_size
 
   environment {
     variables = {
       SES_SENDER_EMAIL     = var.ses_sender_email
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       REGION               = var.aws_region
+      USE_LOCALSTACK       = var.use_localstack ? "true" : "false"
+      LOCALSTACK_ENDPOINT  = var.localstack_endpoint
     }
   }
 
   depends_on = [
-    aws_ecr_repository.lambda_sender_repo,
     module.lambda_sender_role
   ]
 }
@@ -101,6 +104,5 @@ resource "aws_lambda_event_source_mapping" "sqs_trigger" {
   batch_size       = 10
   enabled          = true
 }
-
 
 
