@@ -8,12 +8,13 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-cognito_client = boto3.client('cognito-idp')
-ses_client = boto3.client('ses')
-
 # Environment variables
 USER_POOL_ID = os.environ.get('COGNITO_USER_POOL_ID')
 SOURCE_EMAIL = os.environ.get('SES_SENDER_EMAIL')
+ENDPOINT_URL = os.environ.get('AWS_ENDPOINT_URL')
+
+cognito_client = boto3.client('cognito-idp', endpoint_url=ENDPOINT_URL)
+ses_client = boto3.client('ses', endpoint_url=ENDPOINT_URL)
 
 def get_user_email(user_id):
     """
@@ -34,6 +35,9 @@ def get_user_email(user_id):
 
     except ClientError as e:
         logger.error(f"Error getting user {user_id} from Cognito: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error getting user from Cognito: {e}")
         return None
 
 def send_email_notification(recipient_email, key_name=None, status=None):
@@ -101,6 +105,7 @@ def lambda_handler(event, context):
             'body': json.dumps('Configuration Error')
         }
 
+    print(f"DEBUG: Internal lambda-sender invoked with event: {json.dumps(event)}")
     logger.info(f"Received event: {json.dumps(event)}")
     
     # Iterate through records (handling batch processing)
