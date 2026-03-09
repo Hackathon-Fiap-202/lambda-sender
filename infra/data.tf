@@ -9,7 +9,7 @@ data "aws_sqs_queue" "video_processed_queue" {
 data "terraform_remote_state" "infra_gateway" {
   backend = "s3"
   config = {
-    bucket = "nextime-frame-state-bucket"
+    bucket = "nextime-frame-state-bucket-s3"
     key    = "infra-gateway/infra.tfstate"
     region = "us-east-1"
   }
