@@ -73,7 +73,7 @@ module "lambda_sender_policy" {
         Action = [
           "cognito-idp:AdminGetUser"
         ]
-        Resource = "arn:aws:cognito-idp:${var.aws_region}:${var.account_id}:userpool/${var.cognito_user_pool_id}"
+        Resource = "arn:aws:cognito-idp:${var.aws_region}:${local.account_id}:userpool/${local.cognito_user_pool_id}"
       }
     ]
   }
@@ -99,7 +99,7 @@ resource "aws_lambda_function" "lambda_sender" {
   environment {
     variables = {
       SES_SENDER_EMAIL     = var.ses_sender_email
-      COGNITO_USER_POOL_ID = var.cognito_user_pool_id
+      COGNITO_USER_POOL_ID = local.cognito_user_pool_id
       REGION               = var.aws_region
     }
   }
