@@ -1,9 +1,13 @@
-name: Test and Deploy to AWS
+name: Deploy Lambda Sender to AWS
 
 on:
   push:
     branches:
-      - dev
+      - main
+
+concurrency:
+  group: lambda-sender-deploy
+  cancel-in-progress: false
 
 permissions:
   id-token: write
@@ -12,56 +16,50 @@ permissions:
 env:
   AWS_REGION: us-east-1
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-  IMAGE_TAG: latest
+  ECR_REPOSITORY: lambda-sender
 
 jobs:
-  test-and-deploy:
+  deploy:
+    name: Build, Push & Deploy
     runs-on: ubuntu-latest
 
     steps:
-      # ------------------------------
-      # 1️⃣ Checkout repository
-      # ------------------------------
+      # ----------------------------------------
+      # 1. Checkout
+      # ----------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ------------------------------
-      # 2️⃣ Setup Terraform
-      # ------------------------------
+      # ----------------------------------------
+      # 2. Configure AWS credentials (OIDC)
+      # ----------------------------------------
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ----------------------------------------
+      # 3. Setup Terraform
+      # ----------------------------------------
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.6
 
-      # ------------------------------
-      # 3️⃣ Cache Terraform providers
-      # ------------------------------
       - name: Cache Terraform providers
         uses: actions/cache@v3
         with:
           path: |
             ~/.terraform.d/plugin-cache
             infra/.terraform
-          key: ${{ runner.os }}-terraform-${{ hashFiles('infra/**/*.tf*') }}
+          key: ${{ runner.os }}-terraform-lambda-sender-${{ hashFiles('infra/**/*.tf*') }}
           restore-keys: |
-            ${{ runner.os }}-terraform-
+            ${{ runner.os }}-terraform-lambda-sender-
 
-      # ------------------------------
-      # 4️⃣ Configure AWS (OIDC + IAM Role)
-      # ------------------------------
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-action-role
-          aws-region: ${{ env.AWS_REGION }}
-
-      # ------------------------------
-      # 5️⃣ Terraform – validação e criação do ECR
-      # ------------------------------
-      - name: Terraform Format
-        run: terraform fmt -check -diff || true
-        working-directory: infra
-
+      # ----------------------------------------
+      # 4. Terraform – ensure ECR repo exists
+      # ----------------------------------------
       - name: Terraform Init
         run: terraform init
         working-directory: infra
@@ -70,77 +68,47 @@ jobs:
         run: terraform validate
         working-directory: infra
 
-      - name: Terraform Apply (ECR)
-        id: tf_apply_ecr
-        run: |
-          terraform apply -target=aws_ecr_repository.lambda_auth_repo \
-                          -target=aws_ecr_repository.lambda_registration_repo \
-                          -target=aws_ecr_repository.lambda_get_user_repo \
-                          -target=aws_ecr_repository.lambda_list_users_repo \
-                          -auto-approve
-
-          # Captura os URIs do ECR
-          echo "LAMBDA_AUTH_ECR_URI=$(terraform output -raw ecr_lambda_auth_url)" >> $GITHUB_ENV
-          echo "LAMBDA_REGISTRATION_ECR_URI=$(terraform output -raw ecr_lambda_registration_url)" >> $GITHUB_ENV
-          echo "LAMBDA_GET_USER_ECR_URI=$(terraform output -raw ecr_lambda_get_user_url)" >> $GITHUB_ENV
-          echo "LAMBDA_LIST_USERS_ECR_URI=$(terraform output -raw ecr_lambda_list_users_url)" >> $GITHUB_ENV
+      - name: Terraform Plan (ECR bootstrap)
+        run: terraform plan -out=tfplan
         working-directory: infra
 
-      # ------------------------------
-      # 6️⃣ Docker Build & Push
-      # ------------------------------
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Docker Login no Amazon ECR
-        run: |
-          # Extrair apenas o host do ECR
-          AUTH_ECR_HOST=$(echo ${{ env.LAMBDA_AUTH_ECR_URI }} | cut -d'/' -f1)
-          REGISTRATION_ECR_HOST=$(echo ${{ env.LAMBDA_REGISTRATION_ECR_URI }} | cut -d'/' -f1)
-
-          # Login Docker
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-            | docker login --username AWS --password-stdin $AUTH_ECR_HOST
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-          | docker login --username AWS --password-stdin ${{ env.LAMBDA_REGISTRATION_ECR_URI }}
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-          | docker login --username AWS --password-stdin ${{ env.LAMBDA_GET_USER_ECR_URI }}
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
-          | docker login --username AWS --password-stdin ${{ env.LAMBDA_LIST_USERS_ECR_URI }}
- 
-
-      - name: Build, Tag e Push Lambda Authorizer
-        run: |
-          docker build -t lambda-auth src/lambda_auth/
-          docker tag lambda-auth:latest ${{ env.LAMBDA_AUTH_ECR_URI }}:latest
-          docker push ${{ env.LAMBDA_AUTH_ECR_URI }}:latest
-
-      - name: Build, Tag e Push Lambda Registration
-        run: |
-          docker build -t lambda-registration src/lambda_registration/
-          docker tag lambda-registration:latest ${{ env.LAMBDA_REGISTRATION_ECR_URI }}:latest
-          docker push ${{ env.LAMBDA_REGISTRATION_ECR_URI }}:latest
-
-      - name: Build, Tag e Push Lambda Get User
-        run: |
-          docker build -t lambda-get-user src/lambda_get_user/
-          docker tag lambda-get-user:latest ${{ env.LAMBDA_GET_USER_ECR_URI }}:latest
-          docker push ${{ env.LAMBDA_GET_USER_ECR_URI }}:latest
-
-      - name: Build, Tag e Push Lambda List Users
-        run: |
-          docker build -t lambda-list-users src/lambda_list_users/
-          docker tag lambda-list-users:latest ${{ env.LAMBDA_LIST_USERS_ECR_URI }}:latest
-          docker push ${{ env.LAMBDA_LIST_USERS_ECR_URI }}:latest
-
-      # ------------------------------
-      # 7️⃣ Terraform – Deploy Lambdas
-      # ------------------------------
-      - name: Terraform Plan para Deploy
-        run: |
-          terraform plan -out=tfplan
-        working-directory: infra
-
-      - name: Terraform Apply (Deploy Lambdas)
+      - name: Terraform Apply (ECR bootstrap)
         run: terraform apply -auto-approve tfplan
+        working-directory: infra
+
+      # ----------------------------------------
+      # 5. Docker – build & push to ECR
+      # ----------------------------------------
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag and push image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          ECR_URI: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            --provenance=false \
+            -t $ECR_URI:$IMAGE_TAG \
+            -t $ECR_URI:latest \
+            src/lambda_sender/
+          docker push $ECR_URI:$IMAGE_TAG
+          docker push $ECR_URI:latest
+
+      # ----------------------------------------
+      # 6. Terraform – deploy Lambda with new image
+      # ----------------------------------------
+      - name: Terraform Plan (deploy)
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          ECR_URI: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}
+        run: |
+          terraform plan \
+            -var="lambda_image_tag=$IMAGE_TAG" \
+            -out=tfplan-deploy
+        working-directory: infra
+
+      - name: Terraform Apply (deploy)
+        run: terraform apply -auto-approve tfplan-deploy
         working-directory: infra
