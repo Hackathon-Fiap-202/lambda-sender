@@ -17,18 +17,6 @@ variable "account_id" {
   type        = string
 }
 
-variable "use_localstack" {
-  description = "Use LocalStack instead of AWS"
-  type        = bool
-  default     = true
-}
-
-variable "localstack_endpoint" {
-  description = "LocalStack endpoint URL"
-  type        = string
-  default     = "http://localhost:4566"
-}
-
 # ==========================
 # Lambda Sender
 # ==========================

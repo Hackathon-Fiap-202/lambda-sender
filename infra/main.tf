@@ -85,8 +85,6 @@ resource "aws_lambda_function" "lambda_sender" {
       SES_SENDER_EMAIL     = var.ses_sender_email
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       REGION               = var.aws_region
-      USE_LOCALSTACK       = var.use_localstack ? "true" : "false"
-      LOCALSTACK_ENDPOINT  = var.localstack_endpoint
     }
   }
 
