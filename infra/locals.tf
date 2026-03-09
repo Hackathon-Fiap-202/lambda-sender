@@ -1,3 +1,6 @@
 locals {
-  lambda_sender_image_uri = "${aws_ecr_repository.lambda_sender_repo.repository_url}:${var.lambda_image_tag}" 
+  # lambda-sender is deployed as a ZIP package, not a container image
+  # No ECR repository is needed for this function
+  lambda_function_name = var.lambda_sender_name
 }
+

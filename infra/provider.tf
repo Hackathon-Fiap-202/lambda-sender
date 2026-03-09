@@ -6,9 +6,12 @@ terraform {
     }
   }
 
-  # Backend configuration supports both local and S3
-  # For LocalStack: use local backend in terraform.tfvars
-  # For AWS: configure s3 backend in terraform.tfvars
+  backend "s3" {
+    bucket  = "nextime-frame-state-bucket"
+    key     = "lambda-sender/infra.tfstate"
+    region  = "us-east-1"
+    encrypt = true
+  }
 }
 
 provider "aws" {
