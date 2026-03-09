@@ -1,7 +1,7 @@
 project_name     = "nextime-app"
 aws_region       = "us-east-1"
 account_id       = "383349724220"
-package_type     = "Zip"
+package_type     = "Image"
 memory_size      = 256
 timeout          = 60
 lambda_image_tag = "latest"

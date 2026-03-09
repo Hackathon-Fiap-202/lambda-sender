@@ -1,10 +1,30 @@
 # ==========================
-# Lambda Sender Archive
+# ECR Repository
 # ==========================
-data "archive_file" "lambda_sender" {
-  type        = "zip"
-  source_file = "${path.module}/../lambda-handler.zip"
-  output_path = "${path.module}/.terraform/lambda-handler-archive.zip"
+resource "aws_ecr_repository" "lambda_sender" {
+  name                 = local.lambda_sender_ecr_name
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "lambda_sender" {
+  repository = aws_ecr_repository.lambda_sender.name
+
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Keep last 10 images"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 10
+      }
+      action = { type = "expire" }
+    }]
+  })
 }
 
 # ==========================
@@ -65,17 +85,13 @@ resource "aws_iam_role_policy_attachment" "attach_lambda_sender" {
 }
 
 # ==========================
-# Lambda Function
+# Lambda Function (ECR image)
 # ==========================
 resource "aws_lambda_function" "lambda_sender" {
   function_name = var.lambda_sender_name
   role          = module.lambda_sender_role.role_arn
-  handler       = "lambda_sender.handler.handler"
-  runtime       = "python3.11"
-
-  # Use local ZIP file instead of ECR image
-  filename         = data.archive_file.lambda_sender.output_path
-  source_code_hash = data.archive_file.lambda_sender.output_base64sha256
+  package_type  = "Image"
+  image_uri     = "${local.lambda_sender_ecr_uri}:${var.lambda_image_tag}"
 
   timeout     = var.timeout
   memory_size = var.memory_size
@@ -89,7 +105,8 @@ resource "aws_lambda_function" "lambda_sender" {
   }
 
   depends_on = [
-    module.lambda_sender_role
+    module.lambda_sender_role,
+    aws_ecr_repository.lambda_sender,
   ]
 }
 
@@ -102,5 +119,3 @@ resource "aws_lambda_event_source_mapping" "sqs_trigger" {
   batch_size       = 10
   enabled          = true
 }
-
-

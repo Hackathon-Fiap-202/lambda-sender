@@ -1,3 +1,8 @@
+output "ecr_lambda_sender_url" {
+  description = "ECR repository URI for lambda-sender"
+  value       = aws_ecr_repository.lambda_sender.repository_url
+}
+
 output "lambda_sender_function_name" {
   value = aws_lambda_function.lambda_sender.function_name
 }
