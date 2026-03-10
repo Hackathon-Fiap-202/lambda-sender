@@ -69,11 +69,15 @@ jobs:
         working-directory: infra
 
       - name: Terraform Plan (ECR bootstrap)
-        run: terraform plan -out=tfplan
+        run: |
+          terraform plan \
+            -target=aws_ecr_repository.lambda_sender \
+            -target=aws_ecr_lifecycle_policy.lambda_sender \
+            -out=tfplan-ecr
         working-directory: infra
 
       - name: Terraform Apply (ECR bootstrap)
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply -auto-approve tfplan-ecr
         working-directory: infra
 
       # ----------------------------------------
@@ -102,7 +106,6 @@ jobs:
       - name: Terraform Plan (deploy)
         env:
           IMAGE_TAG: ${{ github.sha }}
-          ECR_URI: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}
         run: |
           terraform plan \
             -var="lambda_image_tag=$IMAGE_TAG" \
