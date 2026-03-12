@@ -40,50 +40,38 @@ def get_user_email(user_id):
         logger.error(f"Unexpected error getting user from Cognito: {e}")
         return None
 
-def send_email_notification(recipient_email, key_name=None, status=None):
-    """
-    Sends an email notification via SES.
-    """
-    # Prepare email content based on status
+def send_email_notification(recipient_email, key_name=None, status=None, download_url=None):  # adiciona
     status_display = status if status else 'completed'
     key_name_display = key_name if key_name else 'your file'
-    
+
     subject = f'Video Processing {status_display.capitalize()}'
-    
+
     text_body = f'Your video "{key_name_display}" has been {status_display}.'
-    if status and status.lower() == 'completed':
+    if download_url:
+        text_body += f' Download it here: {download_url}'
+    elif status and status.lower() == 'completed':
         text_body += ' It is ready for download.'
-    
+
     html_body = f'''<html>
-<body>
-<h1>Video Processing {status_display.capitalize()}</h1>
-<p><strong>File:</strong> {key_name_display}</p>
-<p><strong>Status:</strong> {status_display}</p>
-<p>Your video has been {status_display}.</p>
-{"<p>It is ready for download.</p>" if status and status.lower() == 'completed' else ""}
-</body>
-</html>'''
-    
+    <body>
+    <h1>Video Processing {status_display.capitalize()}</h1>
+    <p><strong>File:</strong> {key_name_display}</p>
+    <p><strong>Status:</strong> {status_display}</p>
+    <p>Your video has been {status_display}.</p>
+    {f'<p><a href="{download_url}">Click here to download your video</a></p>' if download_url else
+    '<p>It is ready for download.</p>' if status and status.lower() == 'completed' else ''}
+    </body>
+    </html>'''
+
     try:
         response = ses_client.send_email(
             Source=SOURCE_EMAIL,
-            Destination={
-                'ToAddresses': [recipient_email]
-            },
+            Destination={'ToAddresses': [recipient_email]},
             Message={
-                'Subject': {
-                    'Data': subject,
-                    'Charset': 'UTF-8'
-                },
+                'Subject': {'Data': subject, 'Charset': 'UTF-8'},
                 'Body': {
-                    'Text': {
-                        'Data': text_body,
-                        'Charset': 'UTF-8'
-                    },
-                    'Html': {
-                        'Data': html_body,
-                        'Charset': 'UTF-8'
-                    }
+                    'Text': {'Data': text_body, 'Charset': 'UTF-8'},
+                    'Html': {'Data': html_body, 'Charset': 'UTF-8'}
                 }
             }
         )
@@ -116,6 +104,7 @@ def lambda_handler(event, context):
                 user_id = body.get('cognito_user_id')
                 key_name = body.get('key_name')
                 status = body.get('status')
+                download_url = body.get('download_url')
                 
                 if not user_id:
                     logger.warning(f"No cognito_user_id found in message body: {record['body']}")
@@ -129,7 +118,15 @@ def lambda_handler(event, context):
                 if status and not isinstance(status, str):
                     logger.warning(f"status is not a string: {status}")
                     status = None
-                
+
+                if download_url and not isinstance(download_url, str):
+                    logger.warning(f"download_url is not a string: {download_url}")
+                    download_url = None
+
+                if status and status.upper() == 'PROCESSING':
+                    logger.info(f"Skipping email notification for PROCESSING status, user: {user_id}")
+                    continue
+
                 if not key_name:
                     logger.warning(f"No key_name found in message body for user: {user_id}")
                 
@@ -141,7 +138,7 @@ def lambda_handler(event, context):
                 email = get_user_email(user_id)
                 
                 if email:
-                    success = send_email_notification(email, key_name, status)
+                    success = send_email_notification(email, key_name, status, download_url)
                     if success:
                         logger.info(f"Successfully processed message for user: {user_id}")
                     else:
