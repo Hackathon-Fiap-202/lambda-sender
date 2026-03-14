@@ -12,11 +12,6 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "account_id" {
-  description = "ID da conta AWS utilizada para o deploy dos recursos."
-  type        = string
-}
-
 # ==========================
 # Lambda Sender
 # ==========================
@@ -55,8 +50,4 @@ variable "ses_sender_email" {
   type        = string
 }
 
-variable "cognito_user_pool_id" {
-  description = "ID do User Pool do Cognito para buscar emails de usuários."
-  type        = string
-}
 
