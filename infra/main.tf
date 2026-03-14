@@ -1,4 +1,33 @@
 # ==========================
+# ECR Repository
+# ==========================
+resource "aws_ecr_repository" "lambda_sender" {
+  name                 = local.lambda_sender_ecr_name
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "lambda_sender" {
+  repository = aws_ecr_repository.lambda_sender.name
+
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Keep last 10 images"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 10
+      }
+      action = { type = "expire" }
+    }]
+  })
+}
+
+# ==========================
 # IAM Role for Lambda Sender
 # ==========================
 module "lambda_sender_role" {
@@ -44,7 +73,7 @@ module "lambda_sender_policy" {
         Action = [
           "cognito-idp:AdminGetUser"
         ]
-        Resource = "arn:aws:cognito-idp:${var.aws_region}:${var.account_id}:userpool/${var.cognito_user_pool_id}"
+        Resource = "arn:aws:cognito-idp:${var.aws_region}:${local.account_id}:userpool/${local.cognito_user_pool_id}"
       }
     ]
   }
@@ -56,39 +85,28 @@ resource "aws_iam_role_policy_attachment" "attach_lambda_sender" {
 }
 
 # ==========================
-# ECR Repository
-# ==========================
-resource "aws_ecr_repository" "lambda_sender_repo" {
-  name                 = "lambda-sender-repo"
-  image_tag_mutability = "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-}
-
-# ==========================
-# Lambda Function
+# Lambda Function (ECR image)
 # ==========================
 resource "aws_lambda_function" "lambda_sender" {
   function_name = var.lambda_sender_name
   role          = module.lambda_sender_role.role_arn
-  package_type  = var.package_type
-  image_uri     = local.lambda_sender_image_uri
-  timeout       = var.timeout
-  memory_size   = var.memory_size
+  package_type  = "Image"
+  image_uri     = "${local.lambda_sender_ecr_uri}:${var.lambda_image_tag}"
+
+  timeout     = var.timeout
+  memory_size = var.memory_size
 
   environment {
     variables = {
       SES_SENDER_EMAIL     = var.ses_sender_email
-      COGNITO_USER_POOL_ID = var.cognito_user_pool_id
+      COGNITO_USER_POOL_ID = local.cognito_user_pool_id
       REGION               = var.aws_region
     }
   }
 
   depends_on = [
-    aws_ecr_repository.lambda_sender_repo,
-    module.lambda_sender_role
+    module.lambda_sender_role,
+    aws_ecr_repository.lambda_sender,
   ]
 }
 
@@ -101,6 +119,3 @@ resource "aws_lambda_event_source_mapping" "sqs_trigger" {
   batch_size       = 10
   enabled          = true
 }
-
-
-
